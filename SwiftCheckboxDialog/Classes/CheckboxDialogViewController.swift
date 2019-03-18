@@ -43,6 +43,8 @@ open class CheckboxDialogViewController: UIViewController, UITableViewDelegate, 
     open var defaultValues: [(name: String, translated: String)] = [] // values loaded from user defaults and shouldn't be change in this class (used on cancel selection and restoring preselected values)
     open var componentName: DialogCheckboxViewEnum?
     open weak var delegateDialogTableView: CheckboxDialogViewDelegate?
+    open var selectType: Int = 0 // added 0 : single choice , 1 : multiple choice
+    open var cancelButtonState: Int = 0
     
     deinit {
         print("\(type(of: self)) was deallocated")
@@ -68,6 +70,7 @@ open class CheckboxDialogViewController: UIViewController, UITableViewDelegate, 
     
     @objc func cancelButtonAction(_ sender: UIButton!) {
         // on Cancel pressed we need to restore to default values (values that we loaded from user defaults, no matter what we selected in meantime)
+        cancelButtonState = 1
         selectedValues = tuplesToDictionary(tuples: defaultValues) //preselect columns that we loaded from user defaults
         
         self.delegateDialogTableView?.onCheckboxPickerValueChange(self.componentName!, values: self.selectedValues)
@@ -164,8 +167,8 @@ open class CheckboxDialogViewController: UIViewController, UITableViewDelegate, 
         cancelButton.layer.borderWidth = 1
         cancelButton.layer.borderColor = UIColor.defaultDialogBorderColor().cgColor
         cancelButton.addTarget(self, action: #selector(cancelButtonAction), for: .touchUpInside)
-        cancelButton.setTitle("Cancel", for: UIControl.State.normal)
-        cancelButton.setTitleColor(UIColor.defaultButtonTextColor(), for: UIControl.State())
+        cancelButton.setTitle("Cancel", for: UIControlState.normal)
+        cancelButton.setTitleColor(UIColor.defaultButtonTextColor(), for: UIControlState())
         cancelButton.widthAnchor.constraint(equalToConstant: dialogViewWidth / 2).isActive = true
         cancelButton.heightAnchor.constraint(equalToConstant: 40.0).isActive = true
     }
@@ -174,18 +177,18 @@ open class CheckboxDialogViewController: UIViewController, UITableViewDelegate, 
         okButton.backgroundColor   = UIColor.white
         okButton.layer.borderWidth = 1
         okButton.layer.borderColor = UIColor.defaultDialogBorderColor().cgColor
-        okButton.setTitle("OK", for: UIControl.State.normal)
+        okButton.setTitle("OK", for: UIControlState.normal)
         okButton.addTarget(self, action: #selector(okButtonAction), for: .touchUpInside)
-        okButton.setTitleColor(UIColor.defaultButtonTextColor(), for: UIControl.State())
+        okButton.setTitleColor(UIColor.defaultButtonTextColor(), for: UIControlState())
         okButton.widthAnchor.constraint(equalToConstant: dialogViewWidth / 2).isActive = true
         okButton.heightAnchor.constraint(equalToConstant: 40.0).isActive = true
     }
     
     func createStackView() {
         stackView.backgroundColor = UIColor.white
-        stackView.axis  = NSLayoutConstraint.Axis.horizontal
-        stackView.distribution  = UIStackView.Distribution.equalSpacing
-        stackView.alignment = UIStackView.Alignment.center
+        stackView.axis  = UILayoutConstraintAxis.horizontal
+        stackView.distribution  = UIStackViewDistribution.equalSpacing
+        stackView.alignment = UIStackViewAlignment.center
         stackView.spacing   = 0.0
         
         stackView.addArrangedSubview(cancelButton)
@@ -270,7 +273,7 @@ open class CheckboxDialogViewController: UIViewController, UITableViewDelegate, 
     }
     
     open func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = CheckboxViewCell(style: UITableViewCell.CellStyle.subtitle, reuseIdentifier: CheckboxViewCell.identifier)
+        let cell = CheckboxViewCell(style: UITableViewCellStyle.subtitle, reuseIdentifier: CheckboxViewCell.identifier)
         
         let object = tableData[indexPath.row]
         cell.setData(object)
@@ -288,14 +291,38 @@ open class CheckboxDialogViewController: UIViewController, UITableViewDelegate, 
     
     open func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let object = tableData[indexPath.row]
-        
-        selectedValues[object.name] = object.translated
+        if (selectType == 1) {
+            selectedValues[object.name] = object.translated
+        } else {
+            var temporary: [(name: String, translated: String)]?
+            temporary = dictionaryToTuples(dictionary: selectedValues)
+            var index = 0
+            while index < tableData.count {
+                let item = tableData[index]
+                
+                if (temporary?.count)! > 0 && tupleContainsByTuple(temporary!, needle: (name: item.name, translated: item.translated)) {
+                    let indexPath = IndexPath(row: index, section: 0)
+                    tableView.deselectRow(at: indexPath, animated: false)
+                }
+                
+                index = index + 1
+            }
+            
+            selectedValues.removeAll()
+            
+            selectedValues[object.name] = object.translated
+        }
     }
     
     open func tableView(_ tableView: UITableView, didDeselectRowAt indexPath: IndexPath) {
         let object = tableData[indexPath.row]
         
-        selectedValues.removeValue(forKey: object.name)
+        if (selectType == 1) {
+            selectedValues.removeValue(forKey: object.name)
+        } else {
+            tableView.selectRow(at: indexPath, animated: false, scrollPosition: .middle)
+            selectedValues[object.name] = object.translated
+        }
     }
     
     open func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
