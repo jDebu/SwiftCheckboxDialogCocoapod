@@ -43,6 +43,8 @@ open class CheckboxDialogViewController: UIViewController, UITableViewDelegate, 
     open var defaultValues: [(name: String, translated: String)] = [] // values loaded from user defaults and shouldn't be change in this class (used on cancel selection and restoring preselected values)
     open var componentName: DialogCheckboxViewEnum?
     open weak var delegateDialogTableView: CheckboxDialogViewDelegate?
+    open var selectType: Int = 0 // added 0 : single choice , 1 : multiple choice
+    open var cancelButtonState: Int = 0
     
     deinit {
         print("\(type(of: self)) was deallocated")
@@ -60,14 +62,15 @@ open class CheckboxDialogViewController: UIViewController, UITableViewDelegate, 
         showDialogView()
     }
     
-    func okButtonAction(_ sender: UIButton!) {
+    @objc func okButtonAction(_ sender: UIButton!) {
         // on OK pressed we need to set selectedValues
         self.delegateDialogTableView?.onCheckboxPickerValueChange(self.componentName!, values: self.selectedValues)
         self.dismiss(animated: false, completion: nil)
     }
     
-    func cancelButtonAction(_ sender: UIButton!) {
+    @objc func cancelButtonAction(_ sender: UIButton!) {
         // on Cancel pressed we need to restore to default values (values that we loaded from user defaults, no matter what we selected in meantime)
+        cancelButtonState = 1
         selectedValues = tuplesToDictionary(tuples: defaultValues) //preselect columns that we loaded from user defaults
         
         self.delegateDialogTableView?.onCheckboxPickerValueChange(self.componentName!, values: self.selectedValues)
@@ -288,14 +291,38 @@ open class CheckboxDialogViewController: UIViewController, UITableViewDelegate, 
     
     open func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let object = tableData[indexPath.row]
-        
-        selectedValues[object.name] = object.translated
+        if (selectType == 1) {
+            selectedValues[object.name] = object.translated
+        } else {
+            var temporary: [(name: String, translated: String)]?
+            temporary = dictionaryToTuples(dictionary: selectedValues)
+            var index = 0
+            while index < tableData.count {
+                let item = tableData[index]
+                
+                if (temporary?.count)! > 0 && tupleContainsByTuple(temporary!, needle: (name: item.name, translated: item.translated)) {
+                    let indexPath = IndexPath(row: index, section: 0)
+                    tableView.deselectRow(at: indexPath, animated: false)
+                }
+                
+                index = index + 1
+            }
+            
+            selectedValues.removeAll()
+            
+            selectedValues[object.name] = object.translated
+        }
     }
     
     open func tableView(_ tableView: UITableView, didDeselectRowAt indexPath: IndexPath) {
         let object = tableData[indexPath.row]
         
-        selectedValues.removeValue(forKey: object.name)
+        if (selectType == 1) {
+            selectedValues.removeValue(forKey: object.name)
+        } else {
+            tableView.selectRow(at: indexPath, animated: false, scrollPosition: .middle)
+            selectedValues[object.name] = object.translated
+        }
     }
     
     open func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
